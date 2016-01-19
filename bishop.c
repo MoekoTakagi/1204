@@ -7,21 +7,45 @@
 最大何個置けるか、またその最大個数における配置は何通りあるかを出力するプログラムを作る。
 入力は，正整数 n だけを並べた１行からなる。
 出力は，配置できる最大個数とその最大個数における配置は何通りあるかを空白で区切り、末尾には改行を書き出す。
+
+角は斜め方向に移動できるので、斜め方向の升目には一つだけ角を置くことを考える。
+例えば升目が4*4=16で与えられたら、盤を90°反転させた以下の状態で、飛車と同様に深さ優先探索を行う。
+
+   *
+  * *
+ * * *
+* * * *
+ * * *
+  * *
+   *
+
+上の状態で考えたときに、一番左の升を1行目とし、それぞれの行に対応する列数を求める。
+升目が16のときならば、
+1行目-1列
+2行目-2列
+3行目-3列
+4行目-4列
+5行目-3列
+6行目-2列
+7行目-1列
+となる。
+探索を行う場所が、盤の中心より左側か、中心を含む右側かで対応する列数も変わってくるため、
+そこで分けて呼び出す探索関数を変えている。
 */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 
-#define MAX 100
+#define MAX 100 //100升まで対応
 
 int depth_first_search_left(int i); //中央より左側の深さ優先探索
 int depth_first_search_right(int i); //中央を含む右側の深さ優先探索
 void set_bishop(int x); //角を置く
 void remove_bishop(int x); //角を除く
-bool prompted_bishop(); //当たりの駒があるかどうか調べ馬に成る
+bool prompted_bishop(); //当たりの駒がなければ馬に成る
 void print_state(); //現在の駒の状態を表示する
-bool search_slanting_bishop(int i); //斜め方向全てに角がなかったらtrueを返す
+bool search_slanting_bishop(int i); //同列の左側の行全てに角がなかったらtrueを返す
 void count_bishop(); //馬の数を数える
 
 static int n;
@@ -36,17 +60,14 @@ int main(){
 }
 
 int depth_first_search_left(int i){
-	int x = i; //x列
-	i = n*(n-i); //i行の1列目の場所
+	int x = i; //x行かつ列数
+	i = n*(n-i); //i行に関しての1列目の場所をiとする
 	int j = 0;
 	while(j < x){
 		if(search_slanting_bishop(i)){ //左隣の列に角が置かれていなければ
 			set_bishop(i); //i番目に角を置く
-			if(i % (n+1) == 0){ //中央まで探索済なら1番目の列を探索する
-				depth_first_search_right(1);
-			}else{
-				depth_first_search_left(x+1); //中央より左側なら次の行を探索する
-			}
+			if(i % (n+1) == 0)depth_first_search_right(1); //中央まで探索済なら右側の行を探索する
+			else depth_first_search_left(x+1); //中央より左側なら次の行を探索する
 			remove_bishop(i); //i番目の角を除く
 		}
 		i += n+1; //次の列を探索
@@ -58,12 +79,12 @@ int depth_first_search_left(int i){
 }
 
 int depth_first_search_right(int i){
-	//最大行数を超えたら全ての升に当たらないように置けたことになるので馬に成るかチェックし馬の数を数える
+	//最大行数を超えたら当たりがないように全ての升に角を置けたことになるので馬に成るかチェックし馬の数を数える
 	if(i >= n){
 		if(prompted_bishop()) count_bishop();
 		return 1;
 	}
-	int x = n-i; //x列
+	int x = n-i; //列数
 	int c = i; //c行
 	int j = 0;
 	while(j < x){
@@ -75,21 +96,15 @@ int depth_first_search_right(int i){
 		i += n+1; //次の列を探索
 		j++;
 	}
-	if(c == n-1){ //最後の行まで見て、馬になるものを探し馬を数える
-		if(prompted_bishop()) count_bishop();
-		return 1;
-	}else{ //最後の行でなければ次の行を探索
-		depth_first_search_right(c+1);
-	}
+	depth_first_search_right(c+1);
 	return 1;
 }
 
 bool search_slanting_bishop(int i){
-	if(i % n == 0) return true; //一番左側なら同じ列に角はないとする
-
-	while(i < n*n && i % n != 0){ //i列目が一番左側じゃなくマス目を越えないとき馬に成るかチェック
-		i += n-1;
-		if(node[i] == true) return false;
+	if(i % n == 0 || i >= n*(n-1)) return true; //ひし形の一番左側なら同じ列に角はないとする
+	while(i < n*n && i % n != 0){
+		i += n-1; //同列の左隣の行を探索
+		if(node[i]) return false;
 	}
 	return true;
 }
@@ -125,7 +140,7 @@ bool prompted_bishop(){
 			if(node[i-1] || node[i+1] || node[i-n] || node[i+n]) return false;
 		}
 	}	
-	return true; //馬に昇格
+	return true; //馬に成る
 }
 
 void count_bishop(){
